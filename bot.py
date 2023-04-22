@@ -1,101 +1,88 @@
 import discord
-from discord.ext import commands
 import asyncio
 import time
-from operator import itemgetter
+import logging
 
-with open(".env") as f:
-    TOKEN = f.read()
+from operator import itemgetter, attrgetter
 
-intents = discord.Intents.default()
-intents.typing = False
-intents.presences = False
 
-bot = commands.Bot(command_prefix='!', intents=intents)
+class foo:
+    @staticmethod
+    def from_admin(msg):
+        admin_roles = {'Admin'}
 
-scores = {}
-questions = []
-answers = []
+        role_names = map(attrgetter('name'), msg.author.roles)
+        for role in role_names:
+            if role in admin_roles:
+                return True
+        return False
 
-with open('questions.txt', 'r') as file:
-    lines = [line.rstrip() for line in file]
-    for i in lines:
-        if not i.split(' ')[0] == 'Answer':
-            questions.append(' '.join(i.split(' ')[:1]))
-        else:
-            answers.append(' '.join(i.split(' ')[:1]))
+    @staticmethod
+    def is_operator(msg):
+        operator_roles = {'Admin', 'Operator', 'Moderator'}
 
-current_question = None
-question_start_time = None
-quiz_channel = None
-question_num = 0
+        role_names = map(attrgetter('name'), msg.author.roles)
+        for role in role_names:
+            if role in operator_roles:
+                return True
+        return False
 
-async def progress_questions():
-    global current_question, question_start_time
-    while True:
-        if quiz_channel and (not current_question or (time.time() - question_start_time) >= 30):
-            if len(questions) == 0:
-                await quiz_channel.send("No more questions available.")
-                break
 
-            current_question, answer = questions.pop(0)
-            question_start_time = time.time()
-            await quiz_channel.send(f"Question: {current_question}")
+class TriviaBot(discord.Client):
 
-        await asyncio.sleep(1)
+    def attach_prompter(self, prompter):
+        self.prompter = prompter
 
-@bot.event
-async def on_ready():
-    print(f'{bot.user} has connected to Discord!')
-    bot.loop.create_task(progress_questions())
+    async def on_ready(self):
+        print("on_ready called")
 
-@bot.command(name='start')
-async def start_quiz(ctx):
-    global quiz_channel
-    quiz_channel = ctx.channel
-    await ctx.send("Starting quiz. Questions will be posted every 30 seconds.")
+        channels = {chan.name: chan for chan in self.get_all_channels()}
 
-@bot.event
-async def on_message(message):
-    global current_question, question_start_time, question_num
-    if message.author == bot.user or not current_question:
-        return
+        logging_channel = channels['admin']
 
-    if message.content.strip().lower() == answers[question_num]:
-        time_elapsed = time.time() - question_start_time
-        score = max(1000 - 25 * time_elapsed, 0)
+        self.prompter.announce_callback = logging_channel.send
 
-        user_id = message.author.id
-        if user_id not in scores:
-            scores[user_id] = {'name': str(message.author), 'score': 0}
-        scores[user_id]['score'] += score
+    async def on_message(self, message):
+        if message.author == self.user:
+            return
 
-        await message.channel.send(f"{message.author.mention} answered correctly and earned {score:.0f} points! Total score: {scores[user_id]['score']:.0f}")
-        current_question = None
-        question_start_time = None
-        question_num = question_num + 1
+        # Verify this does what I think it does
+        if message.is_system():
+            return
 
-    await bot.process_commands(message)
+        if message.channel.name != 'admin':
+            return
 
-@bot.command(name='score')
-async def show_score(ctx):
-    user_id = ctx.author.id
-    if user_id not in scores:
-        await ctx.send(f"{ctx.author.mention}, you haven't answered any questions yet.")
-    else:
-        await ctx.send(f"{ctx.author.mention}, your score is {scores[user_id]['score']:.0f} points.")
+        if not foo.from_admin(message):
+            return
 
-@bot.command(name='leaderboard')
-async def show_leaderboard(ctx):
-    sorted_scores = sorted(scores.values(), key=itemgetter('score'), reverse=True)[:10]
-    if not sorted_scores:
-        await ctx.send("No scores available.")
-        return
+        print(message)
+        self._test_message = message
 
-    leaderboard = "🏆 Leaderboard:\n\n"
-    for i, entry in enumerate(sorted_scores, start=1):
-        leaderboard += f"{i}. {entry['name']} - {entry['score']:.0f} points\n"
+        if message.content.strip().lower() == "this is a test of the bot being able to send messages":
+            await message.channel.send(f'Test Response')
 
-    await ctx.send(leaderboard)
+        payload = message.content.strip().lower()
 
-bot.run(TOKEN)
+        if payload == '!start':
+            await self.prompter()
+
+
+if __name__ == '__main__':
+    logging.basicConfig(level='INFO')
+
+    with open(".env") as f:
+        token = f.read()
+
+    prompter = Prompter()
+    prompter.read_question_file('questions.txt')
+
+    from trivia_prompter import AsyncHelloWorld
+    prompter = AsyncHelloWorld()
+
+    intents = discord.Intents.default()
+    intents.typing, intents.presences = False, False
+
+    bot = TestBot(intents=intents)
+    bot.attach_prompter(prompter)
+    bot.run(token)
