@@ -30,42 +30,33 @@ class foo:
 
 class TriviaBot(discord.Client):
 
-    def attach_prompter(self, prompter):
-        self.prompter = prompter
-
     async def on_ready(self):
         print("on_ready called")
-
-        channels = {chan.name: chan for chan in self.get_all_channels()}
-
-        logging_channel = channels['admin']
-
-        self.prompter.announce_callback = logging_channel.send
+        self.active_channel = None
 
     async def on_message(self, message):
-        if message.author == self.user:
+        if message.author == self.user or message.is_system():
             return
 
-        # Verify this does what I think it does
-        if message.is_system():
-            return
+        payload = message.content.strip()
 
-        if message.channel.name != 'admin':
-            return
+        if payload.startswith('!') and foo.from_admin(message):
+            await self.process_command(message)
+        elif message.channel == self.active_channel:
+            await self.process_freeform(message)
 
-        if not foo.from_admin(message):
-            return
-
-        print(message)
-        self._test_message = message
-
-        if message.content.strip().lower() == "this is a test of the bot being able to send messages":
-            await message.channel.send(f'Test Response')
-
-        payload = message.content.strip().lower()
+    async def process_command(self, message):
+        payload = message.content.strip()
+        if payload == '!stop':
+            self.active_channel = None
+            await message.channel.send('Bot is disabled')
 
         if payload == '!start':
-            await self.prompter()
+            self.active_channel = message.channel
+            await message.channel.send(f'Starting bot in "{message.channel.name}"')
+
+    async def process_freeform(self, message):
+        await message.channel.send(f'Your message length was {len(message.content)}')
 
 
 if __name__ == '__main__':
@@ -74,15 +65,8 @@ if __name__ == '__main__':
     with open(".env") as f:
         token = f.read()
 
-    prompter = Prompter()
-    prompter.read_question_file('questions.txt')
-
-    from trivia_prompter import AsyncHelloWorld
-    prompter = AsyncHelloWorld()
-
     intents = discord.Intents.default()
     intents.typing, intents.presences = False, False
 
-    bot = TestBot(intents=intents)
-    bot.attach_prompter(prompter)
+    bot = TriviaBot(intents=intents)
     bot.run(token)
