@@ -55,5 +55,5 @@ Answer Brain
 Question What is the name of the semi-autonomous botnet worm that targeted unpatched Microsoft Windows systems in 2004?
 Answer Sasser
 
-What was the name of the hacking group that disbanded in 2008 and later merged with the Anonymous collective?
-Answer: LulzSec (Lulz Security)
+Question What was the name of the hacking group that disbanded in 2008 and later merged with the Anonymous collective?
+Answer LulzSec (Lulz Security)
