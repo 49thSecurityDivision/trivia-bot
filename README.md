@@ -7,3 +7,6 @@ A simple Discord bot that reads questions and answers from a file and hosts a qu
 - Keeps track of users' scores
 - Provides a leaderboard of the top 10 scorers
 - Users can check their individual scores
+
+## Contributions
+Contributions are welcome! Please feel free to fork and create a pull request.
